@@ -59,7 +59,7 @@ resource "aws_s3_object" "index" {
 }
 ```
 
-## 👉 Website URL (HTTP only): http://cloudlaunch-site-bucket-<account_id>.s3-website-eu-west-1.amazonaws.com
+## 👉 Website URL (HTTP only): cloudlaunch-site-bucket-426300336425.s3-website-eu-west-1.amazonaws.com
 
 <br>
 <br>
@@ -140,12 +140,9 @@ resource "aws_iam_user_login_profile" "cloudlaunch_user" {
 #### 👉 IAM User Credentials:
 
 - Username: cloudlaunch-user
-- Password: (provided separately in console, must reset at first login)
-- Console URL:
-```
-https://<account_alias>.signin.aws.amazon.com/console
-```
-- Account ID: <your-account-id>
+- Password: (provided separately onedrive file)
+- Console URL: https://426300336425.signin.aws.amazon.com/console
+
 
 <br>
 <br>
