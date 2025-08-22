@@ -1,199 +1,265 @@
-# 🌩️ CloudLaunch – AWS Deployment (AltSchool Semester 3 Assessment)
+# 🌐 CloudLaunch Infrastructure — AltSchool Assessment
 
-This project implements the **CloudLaunch** platform using **AWS core services** and **Terraform**.  
+This repository contains my **Terraform configuration** for the **CloudLaunch project**.  
+It demonstrates my understanding of **AWS core services (S3, IAM, VPC)** and also includes a **bonus CloudFront distribution** for HTTPS.
 
-It demonstrates AWS fundamentals such as **S3 (static hosting + private storage)**, **IAM (least-privilege access)**, and **VPC design (subnets, route tables, and security groups)**.  
+- Name: Gideon Omole
+- Student ID: ALT/SOE/024/5235
 
-> **Note**: All resources are deployed in **AWS Free Tier eligible services only**. No EC2, NAT Gateways, or RDS were provisioned.
-
----
-
-## 📂 Project Structure
-
-cloudlaunch-assessment/
-│── main.tf # Terraform providers + backend setup
-│── variables.tf # Input variables (region, CIDRs, etc.)
-│── outputs.tf # Key resource outputs (S3 URLs, VPC ID, etc.)
-│── s3.tf # S3 buckets + CloudFront (bonus)
-│── iam.tf # IAM user + policies
-│── vpc.tf # VPC, subnets, route tables, security groups
-│── policies/
-│ ├── cloudlaunch-user-policy.json
-│ └── cloudlaunch-vpc-readonly-policy.json
-│── website/
-│ └── index.html # Basic CloudLaunch landing page
-│── README.md # Project documentation
-
-
+- cloudlaunch_cloudfront_url = "d2ddu2q97k4cc7.cloudfront.net"
+- cloudlaunch_user_password = <sensitive>
+- iam_user = "cloudlaunch-user"
+- s3_website_url = "cloudlaunch-site-bucket-426300336425.s3-website-eu-west-1.amazonaws.com"
+- vpc_id = "vpc-0881c71a081bb2ea2"
 
 ---
 
-## 📝 Task 1: Static Website Hosting + IAM User
+## 📘 Task 1 — S3 + IAM (Static Website Hosting & User Permissions)
 
-### ✅ S3 Buckets
-1. **cloudlaunch-site-bucket**
-   - Hosts a **basic static website** (`index.html`).
-   - Public read-only access enabled.
-   - Bonus: Served via **CloudFront** for HTTPS + caching.
+### 🔹 Step 1 — Create Public Website Bucket
+- Declared a public S3 bucket:
 
-2. **cloudlaunch-private-bucket**
-   - Private bucket for storing internal files.
-   - Accessible only by the `cloudlaunch-user` IAM user.
-   - Permissions: `GetObject` + `PutObject` (❌ No Delete).
+```hcl
+resource "aws_s3_bucket" "site" { ... }
+```
 
-3. **cloudlaunch-visible-only-bucket**
-   - Not publicly accessible.
-   - `cloudlaunch-user` can only **ListBucket** (see bucket in console).
-   - Cannot download or upload files.
+- Attached a bucket website configuration:
+```hcl
+resource "aws_s3_bucket_website_configuration" "site" { ... }
+```
 
----
+- Configured:
 
-### ✅ IAM User: `cloudlaunch-user`
-- Created with **custom IAM policy** for strict bucket permissions:
-  - ListBucket on all three buckets.
-  - GetObject on `cloudlaunch-site-bucket`.
-  - GetObject + PutObject on `cloudlaunch-private-bucket`.
-  - ❌ No DeleteObject anywhere.
-  - ❌ No content access to `cloudlaunch-visible-only-bucket`.
+ index.html → main page
 
-- Attached an additional **read-only VPC policy**:
-  - Allows listing/viewing VPC, subnets, route tables, and security groups.
-  - Ensures user can **observe network design** but not modify it.
+ error.html → error page
 
-📄 Example IAM Policy JSON (`cloudlaunch-user-policy.json`):
+To make it public, I configured Bucket Public Access Block (disabled restrictions) and wrote a Bucket Policy to allow s3:GetObject for everyone:
 
+```hcl
+resource "aws_s3_bucket_policy" "site_policy" {
+  policy = jsonencode({
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "s3:GetObject"
+      Resource  = "${aws_s3_bucket.site.arn}/*"
+    }]
+  })
+}
+```
+- Uploaded index.html using Terraform:
+
+```hcl
+resource "aws_s3_object" "index" {
+  bucket       = aws_s3_bucket.site.id
+  key          = "index.html"
+  source       = "index.html"
+  content_type = "text/html"
+}
+```
+
+## 👉 Website URL (HTTP only): http://cloudlaunch-site-bucket-<account_id>.s3-website-eu-west-1.amazonaws.com
+
+<br>
+<br>
+
+### Step 2 — Create Private Bucket
+
+- Created another S3 bucket:
+```hcl
+resource "aws_s3_bucket" "private" { ... }
+```
+
+- Configured Block Public Access to ensure:
+
+  - ❌ No public policies
+
+  - ❌ No ACLs
+
+- This bucket is only accessible via IAM permissions.
+
+### 🔹 Step 3 — Create “Visible-Only” Bucket
+- Created a third bucket:
+```hcl
+resource "aws_s3_bucket" "visible_only" { ... }
+```
+- Blocked public access.
+- IAM users can list objects but not read/download them.
+
+<br>
+<br>
+
+### 🔹 Step 4 — Create IAM User & Policy
+- Declared an IAM user:
+```hcl
+resource "aws_iam_user" "cloudlaunch_user" {
+  name = "cloudlaunch-user"
+}
+```
+- Attached a custom JSON policy (cloudlaunch-user-policy.json) to restrict actions:
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["s3:ListBucket"],
-      "Resource": [
-        "arn:aws:s3:::cloudlaunch-site-bucket",
-        "arn:aws:s3:::cloudlaunch-private-bucket",
-        "arn:aws:s3:::cloudlaunch-visible-only-bucket"
-      ]
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["s3:GetObject"],
-      "Resource": "arn:aws:s3:::cloudlaunch-site-bucket/*"
-    },
-    {
-      "Effect": "Allow",
       "Action": ["s3:GetObject", "s3:PutObject"],
-      "Resource": "arn:aws:s3:::cloudlaunch-private-bucket/*"
-    }
-  ]
-}
-
-📄 Example VPC Read-only Policy (cloudlaunch-vpc-readonly-policy.json):
-
-{
-  "Version": "2012-10-17",
-  "Statement": [
+      "Resource": "arn:aws:s3:::cloudlaunch-private-bucket-<account_id>/*"
+    },
+    {
+      "Effect": "Deny",
+      "Action": ["s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::cloudlaunch-private-bucket-<account_id>/*"
+    },
     {
       "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeVpcs",
-        "ec2:DescribeSubnets",
-        "ec2:DescribeRouteTables",
-        "ec2:DescribeSecurityGroups"
-      ],
-      "Resource": "*"
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::cloudlaunch-visible-only-bucket-<account_id>"
     }
   ]
 }
 
-
-🌍 Static Website
-
-A simple webpage deployed to cloudlaunch-site-bucket.
-
-📄 Example index.html (unique CloudLaunch branding):
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>🌩️ Welcome to CloudLaunch</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin-top: 80px; background: #f4f4f9; }
-    h1 { color: #2c3e50; }
-    p { font-size: 18px; color: #555; }
-    footer { margin-top: 50px; font-size: 14px; color: #777; }
-  </style>
-</head>
-<body>
-  <h1>🚀 CloudLaunch Platform</h1>
-  <p>Deployed using <strong>AWS S3 + CloudFront</strong></p>
-  <p>Secure | Lightweight | Scalable</p>
-  <footer>AltSchool Cloud Engineering – Tinyuka 2024</footer>
-</body>
-</html>
-
-📝 Task 2: VPC Design
-✅ VPC: cloudlaunch-vpc
-
-CIDR Block: 10.0.0.0/16
-
-✅ Subnets
-
-Public Subnet: 10.0.1.0/24 (for load balancers, IGW access)
-
-Application Subnet: 10.0.2.0/24 (for private app servers)
-
-Database Subnet: 10.0.3.0/28 (for DB services like RDS)
-
-✅ Internet Gateway
-
-IGW: cloudlaunch-igw
-
-Attached to VPC.
-
-✅ Route Tables
-
-Public Route Table (cloudlaunch-public-rt)
-
-Associated with Public Subnet.
-
-Default route 0.0.0.0/0 → Internet Gateway.
-
-App Route Table (cloudlaunch-app-rt)
-
-Associated with Application Subnet.
-
-No route to internet (fully private).
-
-DB Route Table (cloudlaunch-db-rt)
-
-Associated with Database Subnet.
-
-No route to internet (fully private).
-
-✅ Security Groups
-
-cloudlaunch-app-sg
-
-Allows HTTP (port 80) traffic only inside VPC (10.0.0.0/16).
-
-Egress: allow all outbound.
-
-cloudlaunch-db-sg
-
-Allows MySQL (port 3306) from App Subnet (10.0.2.0/24) only.
-
-Egress: allow all outbound.
+<br>
+<br>
 
 
-🌐 Bonus: CloudFront Distribution
+```
 
-CloudFront sits in front of cloudlaunch-site-bucket.
+- Added a login profile with enforced password reset on first login.
+```hcl
+resource "aws_iam_user_login_profile" "cloudlaunch_user" {
+  user    = aws_iam_user.cloudlaunch_user.name
+  password_reset_required = true
+}
+```
 
-Provides:
+<br>
+<br>
 
-HTTPS (SSL termination).
+#### 👉 IAM User Credentials:
 
-Global CDN caching for faster site delivery.
+- Username: cloudlaunch-user
+- Password: (provided separately in console, must reset at first login)
+- Console URL:
+```
+https://<account_alias>.signin.aws.amazon.com/console
+```
+- Account ID: <your-account-id>
+
+<br>
+<br>
+
+### 🔹 Bonus — CloudFront Distribution
+
+- Created a CloudFront distribution in front of the public website bucket:
+```hcl
+resource "aws_cloudfront_distribution" "cloudlaunch_site_cdn" { ... }
+```
+This provides:
+
+- ✅ HTTPS (via AWS default SSL cert)
+
+- ✅ Global CDN caching
+
+👉 CloudFront URL (HTTPS-secure): https://d2ddu2q97k4cc7.cloudfront.net/
+
+<br>
+<br>
+
+## 📘 Task 2 — VPC Design
+### 🔹 Step 1 — Create VPC
+
+Declared a new VPC:
+```
+resource "aws_vpc" "cloudlaunch" {
+  cidr_block = "10.0.0.0/16"
+}
+```
+<br>
+<br>
+
+### 🔹 Step 2 — Create Subnets
+
+- Public Subnet → 10.0.1.0/24
+- Application Subnet → 10.0.2.0/24
+- Database Subnet → 10.0.3.0/28
+```hcl
+resource "aws_subnet" "public" { ... }
+resource "aws_subnet" "app" { ... }
+resource "aws_subnet" "db" { ... }
+```
+<br>
+<br>
+### 🔹 Step 3 — Internet Gateway & Routes
+
+- Attached an IGW:
+```hcl
+resource "aws_internet_gateway" "igw" { ... }
+```
+
+- Configured Route Tables:
+
+   -  Public RT → routes 0.0.0.0/0 → IGW
+
+   -  Private RTs → no internet route
+<br>
+<br>
+
+### 🔹 Step 4 — Security Groups
+
+- App SG (cloudlaunch-app-sg)
+
+  - Allows inbound HTTP (80) traffic within the VPC only.
+
+- DB SG (cloudlaunch-db-sg)
+
+  - Allows inbound MySQL (3306) only from the Application Subnet.
+
+
+📂 Repository Structure
+```bash
+cloudlaunch/
+├── main.tf                        # AWS provider
+├── variables.tf                   # Variables
+├── s3.tf                          # S3 buckets + policies
+├── iam.tf                         # IAM user + policy
+├── vpc.tf                         # VPC, subnets, routes, SGs
+├── cloudfront.tf                  # CloudFront distribution (bonus)
+├── cloudlaunch-user-policy.json   # IAM custom policy
+├── screenshots/                   # Screenshots of console (optional)
+└── README.md                      # This file
+```
+<br>
+<br>
+🖼️ Screenshots 
+
+- AWS Console → Show 3 buckets created
+
+![Alt text](/images/S3%20buckets.png "S3 bucket")
+
+<br>
+<br>
+
+- S3 website running in browser (HTTP only)
+![Alt text](/images/S3%20HTTP%20only.png "S3 site")
+
+<br>
+<br>
+
+- CloudFront distribution URL showing HTTPS secure site
+
+![Alt text](/images/CDN%20site.png "CDN site")
+<br>
+<br>
+
+- VPC with subnets in AWS Console
+
+![Alt text](/images/VPC.png "CDN site")
+
+
+
+
+
+
 

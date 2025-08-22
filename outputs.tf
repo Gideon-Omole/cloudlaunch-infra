@@ -6,6 +6,13 @@ output "iam_user" {
   value = aws_iam_user.cloudlaunch_user.name
 }
 
+# Output the user's initial password (only visible after apply)
+output "cloudlaunch_user_password" {
+  value     = aws_iam_user_login_profile.cloudlaunch_user.password
+  sensitive = true
+}
+
+
 output "vpc_id" {
   value = aws_vpc.cloudlaunch.id
 }
