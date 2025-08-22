@@ -1,10 +1,11 @@
+data "aws_caller_identity" "current" {}
+
 # public website bucket
 
 resource "aws_s3_bucket" "site" {
-  bucket = "cloudlaunch-site-bucket"
-  tags   = { Project = "CloudLaunch" }
+  bucket        = "cloudlaunch-site-bucket-${data.aws_caller_identity.current.account_id}"
+  force_destroy = true
 }
-
 
 # Enable website hosting on site bucket
 
@@ -22,11 +23,10 @@ resource "aws_s3_bucket_website_configuration" "site" {
 }
 
 resource "aws_s3_object" "index" {
-  bucket = aws_s3_bucket.site.id
-  key    = "index.html"
-  source = "${path.module}/website/index.html"  # Path to your index.html file
-  acl    = "public-read"  # Make it publicly readable
-  
+  bucket       = aws_s3_bucket.site.id
+  key          = "index.html"
+  source       = "index.html"
+  content_type = "text/html"
 }
 
 
@@ -63,8 +63,8 @@ resource "aws_s3_bucket_policy" "site_policy" {
 # Private bucket (no public access)
 
 resource "aws_s3_bucket" "private" {
-  bucket = "cloudlaunch-private-bucket"
-  tags   = { Project = "CloudLaunch" }
+  bucket        = "cloudlaunch-private-bucket-${data.aws_caller_identity.current.account_id}"
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "private" {
@@ -79,8 +79,8 @@ resource "aws_s3_bucket_public_access_block" "private" {
 #Visible only bucket (no public access, but can be accessed by authenticated users)
 
 resource "aws_s3_bucket" "visible_only" {
-  bucket = "cloudlaunch-visible-only-bucket"
-  tags   = { Project = "CloudLaunch" }
+  bucket        = "cloudlaunch-visible-only-bucket-${data.aws_caller_identity.current.account_id}"
+  force_destroy = true
 }
 
 # Block public access settings for visible only bucket
