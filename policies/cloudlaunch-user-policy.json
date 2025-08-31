@@ -15,8 +15,7 @@
       "Action": ["s3:ListBucket"],
       "Resource": [
         "arn:aws:s3:::cloudlaunch-private-bucket-426300336425",
-        "arn:aws:s3:::cloudlaunch-site-bucket-426300336425",
-        "arn:aws:s3:::cloudlaunch-visible-only-bucket-426300336425"
+        "arn:aws:s3:::cloudlaunch-site-bucket-426300336425"
       ]
     },
     {
