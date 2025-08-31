@@ -1,4 +1,3 @@
-
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -15,20 +14,20 @@
       "Effect": "Allow",
       "Action": ["s3:ListBucket"],
       "Resource": [
-        "arn:aws:s3:::cloudlaunch-private-bucket",
-        "arn:aws:s3:::cloudlaunch-site-bucket",
-        "arn:aws:s3:::cloudlaunch-visible-only-bucket"
+        "arn:aws:s3:::cloudlaunch-private-bucket-426300336425",
+        "arn:aws:s3:::cloudlaunch-site-bucket-426300336425",
+        "arn:aws:s3:::cloudlaunch-visible-only-bucket-426300336425"
       ]
     },
     {
       "Effect": "Allow",
       "Action": ["s3:GetObject", "s3:PutObject"],
-      "Resource": "arn:aws:s3:::cloudlaunch-private-bucket/*"
+      "Resource": "arn:aws:s3:::cloudlaunch-private-bucket-426300336425/*"
     },
     {
       "Effect": "Allow",
       "Action": ["s3:GetObject"],
-      "Resource": "arn:aws:s3:::cloudlaunch-site-bucket/*"
+      "Resource": "arn:aws:s3:::cloudlaunch-site-bucket-426300336425/*"
     }
   ]
 }
